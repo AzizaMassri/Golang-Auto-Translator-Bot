@@ -13,10 +13,11 @@ fi
 
 echo "Registering /translate command to Discord Global Registry..."
 
-curl -X POST \
+curl -X PUT \
   -H "Content-Type: application/json" \
   -H "Authorization: Bot $BOT_TOKEN" \
-  -d '{
+  -d '[
+  {
     "name": "translate",
     "type": 1,
     "description": "Translates your text instantly",
@@ -29,12 +30,18 @@ curl -X POST \
       },
       {
         "name": "language",
-        "description": "Target Language (e.g. Spanish, French)",
+        "description": "Target Language (e.g. Spanish, French, Japanese)",
         "type": 3,
         "required": true
       }
     ]
-  }' \
+  },
+  {
+    "name": "help",
+    "type": 1,
+    "description": "Pull up the GlobalSync Guide and commands menu"
+  }
+]' \
   "https://discord.com/api/v10/applications/$APP_ID/commands"
 
 echo -e "\n\nCommand registration dispatched!"

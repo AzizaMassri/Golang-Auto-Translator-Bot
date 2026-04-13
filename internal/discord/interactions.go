@@ -51,32 +51,59 @@ func (ih *InteractionHandler) HandleInteraction(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Application Command Trigger (/translate)
+	// Application Command Trigger (/translate or /help)
 	if t, ok := payload["type"].(float64); ok && t == 2 {
-		log.Println("Received Application Command. Dispatching to NATS...")
+		data := payload["data"].(map[string]interface{})
+		commandName := data["name"].(string)
 
-		// Mock payload parsing (In prod, iterate over payload["data"])
-		job := queue.TranslationJob{
-			ChannelID:        "mock-id",
-			OriginalUsername: "EndUser",
-			AvatarURL:        "",
-			Content:          "Sample text to translate",
-			TargetLanguage:   "Spanish",
-			IsEnterprise:     false,
+		if commandName == "help" {
+			log.Println("Dispatching native /help menu.")
+			
+			// Instant Response with a Rich Embed
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"type": 4, // CHANNEL_MESSAGE_WITH_SOURCE
+				"data": map[string]interface{}{
+					"embeds": []map[string]interface{}{
+						{
+							"title":       "🌍 GlobalSync Bot Guide",
+							"description": "Welcome to GlobalSync! I use highly optimized Gemini AI pipelines to cleanly translate your messages instantly.\n\n**How to use:**\nType `/translate` and feed me the text and the target language. I will execute a Webhook that mimics your username and avatar, but translates the text directly into the chat for your international communities to read!\n\n**Enterprise Optimization:**\nIf you have purchased a premium Discord Subscription to GlobalSync, you are automatically routed to our massive `Gemini Pro` pipeline for deep cultural slang intelligence.",
+							"color":       3447003, // Blue Color
+						},
+					},
+					"flags": 64, // EPHEMERAL - Only the user who triggered it sees it
+				},
+			})
+			return
 		}
 
-		// Detect Discord Native Monetization / Subscriptions on the Event
-		if entitlements, ok := payload["entitlements"].([]interface{}); ok && len(entitlements) > 0 {
-			log.Println("Premium Subscription detected! Elevating to Gemini Pro.")
-			job.IsEnterprise = true
-		}
+		if commandName == "translate" {
+			log.Println("Received Application Command. Dispatching to NATS...")
 
-		ih.NatsMgr.PublishJob(job)
+			// Mock payload parsing (In prod, iterate over data["options"])
+			job := queue.TranslationJob{
+				ChannelID:        "mock-id",
+				OriginalUsername: "EndUser",
+				AvatarURL:        "",
+				Content:          "Sample text to translate",
+				TargetLanguage:   "Spanish",
+				IsEnterprise:     false,
+			}
+
+			// Detect Discord Native Monetization / Subscriptions on the Event
+			if entitlements, ok := payload["entitlements"].([]interface{}); ok && len(entitlements) > 0 {
+				log.Println("Premium Subscription detected! Elevating to Gemini Pro.")
+				job.IsEnterprise = true
+			}
+
+			ih.NatsMgr.PublishJob(job)
+
+			// Defer response indicating we are "thinking..." (DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]int{"type": 5})
+			return
+		}
 	}
-
-	// Defer response indicating we are "thinking..." (DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"type": 5})
 }
 
 // verifyDiscordSignature extracts headers and securely validates the payload

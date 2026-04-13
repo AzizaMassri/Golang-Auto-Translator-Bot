@@ -1,0 +1,24 @@
+[Unit]
+Description=GlobalSync Discord Bot Service
+After=network.target docker.service
+
+[Service]
+# Execute the native Go binary resulting from `go build`
+Type=simple
+# Ensure you update WorkingDirectory to the actual absolute path on your VM (e.g. /opt/globalsync)
+WorkingDirectory=/opt/GlobalSync-Bot
+ExecStart=/opt/GlobalSync-Bot/bin/globalsync
+
+# Auto restart the bot if it crashes or the VM reboots
+Restart=always
+RestartSec=3
+
+# Graceful termination params so our Go script can flush its DB pools before exiting
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+# Security bounds / Non-root execution if applicable
+# User=botuser
+
+[Install]
+WantedBy=multi-user.target

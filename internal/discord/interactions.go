@@ -9,15 +9,17 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/redis/go-redis/v9"
 	"globalsync/internal/queue"
 )
 
 type InteractionHandler struct {
 	NatsMgr *queue.NatsManager
+	RDB     *redis.Client
 }
 
-func NewInteractionHandler(nm *queue.NatsManager) *InteractionHandler {
-	return &InteractionHandler{NatsMgr: nm}
+func NewInteractionHandler(nm *queue.NatsManager, rdb *redis.Client) *InteractionHandler {
+	return &InteractionHandler{NatsMgr: nm, RDB: rdb}
 }
 
 // HandleInteraction processes stateless HTTP webhooks sent by Discord.
@@ -51,59 +53,62 @@ func (ih *InteractionHandler) HandleInteraction(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Application Command Trigger (/translate or /help)
+	// Application Command Trigger (/language or /help)
 	if t, ok := payload["type"].(float64); ok && t == 2 {
 		data := payload["data"].(map[string]interface{})
 		commandName := data["name"].(string)
 
 		if commandName == "help" {
 			log.Println("Dispatching native /help menu.")
-			
-			// Instant Response with a Rich Embed
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"type": 4, // CHANNEL_MESSAGE_WITH_SOURCE
+				"type": 4, // Instant ChannelMessageWithSource
 				"data": map[string]interface{}{
 					"embeds": []map[string]interface{}{
 						{
-							"title":       "🌍 GlobalSync Bot Guide",
-							"description": "Welcome to GlobalSync! I use highly optimized Gemini AI pipelines to cleanly translate your messages instantly.\n\n**How to use:**\nType `/translate` and feed me the text and the target language. I will execute a Webhook that mimics your username and avatar, but translates the text directly into the chat for your international communities to read!\n\n**Enterprise Optimization:**\nIf you have purchased a premium Discord Subscription to GlobalSync, you are automatically routed to our massive `Gemini Pro` pipeline for deep cultural slang intelligence.",
-							"color":       3447003, // Blue Color
+							"title":       "🌍 GlobalSync Auto-Translation Architecture",
+							"description": "Welcome to GlobalSync! I translate all messages natively in your channels.\n\n**How to use:**\nType `/language` and set the language you naturally speak. Whenever someone else sends a message in the channel, it will instantly translate it strictly into your chosen language, perfectly mimicking them!\n\n**Enterprise Optimization:**\nPremium channels instantly use `Gemini Pro` for zero latency cultural translation mapping.",
+							"color":       3447003,
 						},
 					},
-					"flags": 64, // EPHEMERAL - Only the user who triggered it sees it
+					"flags": 64, // Ephemeral
 				},
 			})
 			return
 		}
 
-		if commandName == "translate" {
-			log.Println("Received Application Command. Dispatching to NATS...")
-
-			// Mock payload parsing (In prod, iterate over data["options"])
-			job := queue.TranslationJob{
-				ChannelID:        "mock-id",
-				OriginalUsername: "EndUser",
-				AvatarURL:        "",
-				Content:          "Sample text to translate",
-				TargetLanguage:   "Spanish",
-				IsEnterprise:     false,
+		if commandName == "language" {
+			// Extract User ID determining if invoked in Server or DM
+			var userID string
+			if member, ok := payload["member"].(map[string]interface{}); ok {
+				user := member["user"].(map[string]interface{})
+				userID = user["id"].(string)
+			} else {
+				user := payload["user"].(map[string]interface{})
+				userID = user["id"].(string)
 			}
 
-			// Detect Discord Native Monetization / Subscriptions on the Event
-			if entitlements, ok := payload["entitlements"].([]interface{}); ok && len(entitlements) > 0 {
-				log.Println("Premium Subscription detected! Elevating to Gemini Pro.")
-				job.IsEnterprise = true
-			}
+			// Extract User's selected language
+			options := data["options"].([]interface{})
+			langSelection := options[0].(map[string]interface{})["value"].(string)
 
-			ih.NatsMgr.PublishJob(job)
+			// Fast cache into Dragonfly
+			ih.RDB.Set(r.Context(), "user:"+userID+":language", langSelection, 0)
+			
+			log.Printf("User %s pinned native language as: %s", userID, langSelection)
 
-			// Defer response indicating we are "thinking..." (DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]int{"type": 5})
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"type": 4, // 4 = Instant response (Bypasses the 'thinking' bug completely)
+				"data": map[string]interface{}{
+					"content": "✅ Perfect! All international messages in your channels will now invisibly Auto-Translate into **" + langSelection + "** for you! (Other users will see it in their chosen language)",
+					"flags": 64, // Ephemeral
+				},
+			})
 			return
 		}
 	}
+}
 }
 
 // verifyDiscordSignature extracts headers and securely validates the payload

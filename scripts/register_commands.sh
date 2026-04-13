@@ -18,19 +18,13 @@ curl -X PUT \
   -H "Authorization: Bot $BOT_TOKEN" \
   -d '[
   {
-    "name": "translate",
+    "name": "language",
     "type": 1,
-    "description": "Translates your text instantly",
+    "description": "Set your native language for Auto-Translation",
     "options": [
       {
-        "name": "text",
-        "description": "The text to translate",
-        "type": 3,
-        "required": true
-      },
-      {
-        "name": "language",
-        "description": "Target Language (e.g. Spanish, French, Japanese)",
+        "name": "selection",
+        "description": "What language do you speak? (e.g. Spanish, Japanese, English)",
         "type": 3,
         "required": true
       }

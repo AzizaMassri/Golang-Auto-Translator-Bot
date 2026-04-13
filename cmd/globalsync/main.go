@@ -66,13 +66,28 @@ func main() {
 		log.Fatalf("Failed to connect to NATS: %v", err)
 	}
 
-	// 4. Start internal worker pipeline
+	// 4. Start Massive-Scale WebSocket Ingestor (Gateway)
+	botToken := os.Getenv("BOT_TOKEN") // User must add this locally
+	if botToken != "" {
+		ingestor, err := discord.NewGatewayIngestor(botToken, rdb, natsMgr)
+		if err != nil {
+			log.Fatalf("Failed to bind Discord Gateway Ingestor: %v", err)
+		}
+		if err := ingestor.Start(); err != nil {
+			log.Fatalf("Failed to open Discord Gateway socket: %v", err)
+		}
+		defer ingestor.Stop()
+	} else {
+		log.Println("WARNING: BOT_TOKEN is missing! Gateway Ingestor cannot start. Auto-translation disabled.")
+	}
+
+	// 5. Start internal HTTP execution worker pipeline
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
-	worker.StartTranslationWorker(workerCtx, natsMgr, gemini, multiplexer)
+	worker.StartTranslationWorker(workerCtx, botToken, natsMgr, gemini, multiplexer)
 
-	// 5. Inject NATS into the Discord handler
-	handler := discord.NewInteractionHandler(natsMgr)
+	// 6. Inject NATS and RDB into the Discord handler
+	handler := discord.NewInteractionHandler(natsMgr, rdb)
 	http.HandleFunc("/interactions", handler.HandleInteraction)
 
 	port := os.Getenv("PORT")

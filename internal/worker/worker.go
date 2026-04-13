@@ -10,7 +10,7 @@ import (
 )
 
 // StartTranslationWorker binds the NATS queue consumer to Gemini and Discord Webhooks.
-func StartTranslationWorker(ctx context.Context, natsMgr *queue.NatsManager, gemini *translator.GeminiService, multiplexer *discord.WebhookMultiplexer) {
+func StartTranslationWorker(ctx context.Context, botToken string, natsMgr *queue.NatsManager, gemini *translator.GeminiService, multiplexer *discord.WebhookMultiplexer) {
 	log.Println("Starting NATS consumer worker pool...")
 
 	err := natsMgr.StartConsumer(ctx, func(job queue.TranslationJob) {
@@ -24,13 +24,12 @@ func StartTranslationWorker(ctx context.Context, natsMgr *queue.NatsManager, gem
 		}
 
 		// 2. Fetch/Recycle Webhook from DragonflyDB and Execute
-		// For the sake of this setup, we assume the bot uses a static Webhook Token 
-		// Or the multiplexer has logic to check cache. We use dummy placeholders here 
-		// because Discord HTTP Interactions do not automatically provide webhook URLs unless we use the Followup API.
-		
-		// In a real Discord Interaction, you can "follow up" using the interaction token.
-		// However, for strict Webhook Multiplexing as designed:
-		err = multiplexer.ExecuteInline(ctx, job.ChannelID, "STATIC_TOKEN_HERE", job.OriginalUsername, job.AvatarURL, "🌍", translatedText)
+		if botToken == "" {
+			log.Println("Error: BOT_TOKEN missing. Cannot dispatch Webhook.")
+			return
+		}
+
+		err = multiplexer.ExecuteInline(ctx, job.ChannelID, botToken, job.OriginalUsername, job.AvatarURL, "", translatedText)
 		if err != nil {
 			log.Printf("Multiplexer webhook execution failed: %v", err)
 		}

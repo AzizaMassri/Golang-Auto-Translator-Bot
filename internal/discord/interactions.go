@@ -55,10 +55,8 @@ func HandleInteraction(w http.ResponseWriter, r *http.Request) {
 func verifyDiscordSignature(r *http.Request, body []byte) bool {
 	pubKeyHex := os.Getenv("DISCORD_PUBLIC_KEY")
 	if pubKeyHex == "" {
-		// Bypassing verification if running locally without keys loaded into terminal memory.
-		// NOTE: Never do this in production, but helpful for local setup checks.
-		log.Println("Warning: DISCORD_PUBLIC_KEY environment variable is empty! Bypassing security check for local debug...")
-		return true 
+		log.Println("Error: DISCORD_PUBLIC_KEY environment variable is empty!")
+		return false 
 	}
 
 	pubKeyBytes, err := hex.DecodeString(pubKeyHex)

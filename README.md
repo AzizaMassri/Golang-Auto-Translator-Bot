@@ -52,3 +52,36 @@ go run cmd/globalsync/main.go
 The system will now securely await incoming HTTP Discord Event Pings via `localhost:8080/interactions`.
 
 *(If testing locally before deploying to an actual server, launch a reverse proxy like `ngrok http 8080` to safely bounce Discord requests down to your localhost).*
+---
+
+## 🤖 Automated Deployment Scripts
+
+For maximum stability, the repository includes a `scripts/` directory designed for seamless lifecycle management.
+
+### Local Development
+To launch the dependency stack and the Go binary locally with a single command, run:
+```bash
+./scripts/run_local.sh
+```
+
+### VM Auto-Provisioning (One-Click Setup)
+If you are deploying to a fresh Ubuntu or Debian VM, ssh into the VM and run the automated provisioning script to install Go, Docker, NATS, Dragonfly, clone the repository, and bind the systemd daemon:
+
+```bash
+apt-get update && apt-get install -y curl
+curl -O https://raw.githubusercontent.com/ROCKETexecdevs/GlobalSync-Bot/main/scripts/setup_vm.sh
+bash setup_vm.sh
+```
+
+### VM Graceful Updates
+When you push new code to your repository, you don't need to manually stop, compile, and reboot the system. Instead, just run the deploy script from inside `/opt/GlobalSync-Bot`:
+
+```bash
+sudo ./scripts/deploy_vm.sh
+```
+
+This will:
+1. Trap `SIGTERM` to safely shut down the translation pool.
+2. Run a `git pull origin main`.
+3. Re-compile the optimized Go binaries (`go build`).
+4. Restart the `globalsync.service` background daemon instantly.

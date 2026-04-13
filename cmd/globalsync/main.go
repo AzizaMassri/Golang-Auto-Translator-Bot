@@ -12,6 +12,11 @@ import (
 	"time"
 
 	"globalsync/internal/discord"
+	"globalsync/internal/queue"
+	"globalsync/internal/translator"
+	"globalsync/internal/worker"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // loadEnv parses the .env file recursively without external packages
@@ -41,7 +46,34 @@ func main() {
 
 	log.Println("Booting GlobalSync (Go + NATS + Dragonfly) Architecture...")
 
-	http.HandleFunc("/interactions", discord.HandleInteraction)
+	// 1. Initialize Dragonfly DB
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	multiplexer := discord.NewWebhookMultiplexer(rdb)
+
+	// 2. Initialize Gemini AI
+	geminiCtx := context.Background()
+	gemini, err := translator.NewGeminiService(geminiCtx, os.Getenv("GEMINI_API_KEY"))
+	if err != nil {
+		log.Fatalf("Failed to bind Gemini Client: %v", err)
+	}
+
+	// 3. Initialize NATS JetStream
+	natsMgr := &queue.NatsManager{}
+	// Use docker networking or localhost accordingly
+	if err := natsMgr.Connect("nats://localhost:4222"); err != nil {
+		log.Fatalf("Failed to connect to NATS: %v", err)
+	}
+
+	// 4. Start internal worker pipeline
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+	worker.StartTranslationWorker(workerCtx, natsMgr, gemini, multiplexer)
+
+	// 5. Inject NATS into the Discord handler
+	handler := discord.NewInteractionHandler(natsMgr)
+	http.HandleFunc("/interactions", handler.HandleInteraction)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -52,7 +84,6 @@ func main() {
 		Addr:    ":" + port,
 	}
 
-	// Run server in a goroutine so it doesn't block
 	go func() {
 		log.Printf("Listening for Discord HTTP Webhooks on %s/interactions", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -60,7 +91,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shut down the server
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -73,5 +103,6 @@ func main() {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
+	natsMgr.NC.Close()
 	log.Println("Server exiting gracefully")
 }

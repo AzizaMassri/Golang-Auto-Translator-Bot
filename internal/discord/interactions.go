@@ -8,10 +8,20 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"globalsync/internal/queue"
 )
 
+type InteractionHandler struct {
+	NatsMgr *queue.NatsManager
+}
+
+func NewInteractionHandler(nm *queue.NatsManager) *InteractionHandler {
+	return &InteractionHandler{NatsMgr: nm}
+}
+
 // HandleInteraction processes stateless HTTP webhooks sent by Discord.
-func HandleInteraction(w http.ResponseWriter, r *http.Request) {
+func (ih *InteractionHandler) HandleInteraction(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("Error reading body: %v", err)
@@ -20,14 +30,12 @@ func HandleInteraction(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// 1. Authenticate Request via Ed25519 Signature
 	if !verifyDiscordSignature(r, body) {
 		log.Println("Unauthorized Discord Ping Blocked.")
 		http.Error(w, "Invalid Request Signature", http.StatusUnauthorized)
 		return
 	}
 
-	// Parse Discord Payload
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		log.Printf("Invalid JSON: %v", string(body))
@@ -43,10 +51,30 @@ func HandleInteraction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("Received valid interaction event. Dispatching to NATS...")
+	// Application Command Trigger (/translate)
+	if t, ok := payload["type"].(float64); ok && t == 2 {
+		log.Println("Received Application Command. Dispatching to NATS...")
 
-	// Defer response indicating we are "thinking..." 
-	// (Type 5: DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)
+		// Mock payload parsing (In prod, iterate over payload["data"])
+		job := queue.TranslationJob{
+			ChannelID:        "mock-id",
+			OriginalUsername: "EndUser",
+			AvatarURL:        "",
+			Content:          "Sample text to translate",
+			TargetLanguage:   "Spanish",
+			IsEnterprise:     false,
+		}
+
+		// Detect Discord Native Monetization / Subscriptions on the Event
+		if entitlements, ok := payload["entitlements"].([]interface{}); ok && len(entitlements) > 0 {
+			log.Println("Premium Subscription detected! Elevating to Gemini Pro.")
+			job.IsEnterprise = true
+		}
+
+		ih.NatsMgr.PublishJob(job)
+	}
+
+	// Defer response indicating we are "thinking..." (DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]int{"type": 5})
 }

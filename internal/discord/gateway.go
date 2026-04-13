@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -62,7 +63,9 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 	// Anyone who spikes in the last hour is considered "active" for translation targeting.
 	activeKey := "channel:" + channelID + ":active"
 	i.RDB.ZAdd(ctx, activeKey, redis.Z{Score: float64(time.Now().Unix()), Member: userID})
-	i.RDB.ZRemRangeByScore(ctx, activeKey, "0", float64(time.Now().Add(-1*time.Hour).Unix())) // Prune old
+	
+	maxScoreStr := strconv.FormatInt(time.Now().Add(-1*time.Hour).Unix(), 10)
+	i.RDB.ZRemRangeByScore(ctx, activeKey, "-inf", maxScoreStr) // Prune old
 
 	// 2. Fetch the Sender's native language to prevent translating Spanish -> Spanish
 	senderLang, err := i.RDB.Get(ctx, "user:"+userID+":language").Result()

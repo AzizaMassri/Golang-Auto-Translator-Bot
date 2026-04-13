@@ -15,39 +15,86 @@ import (
 // WebhookMultiplexer controls webhook execution caching heavily aided by DragonflyDB
 type WebhookMultiplexer struct {
 	RedisClient *redis.Client
-	MaxHooks    int
 }
 
 // NewWebhookMultiplexer initializes the struct connected to Dragonfly
 func NewWebhookMultiplexer(rdb *redis.Client) *WebhookMultiplexer {
-	return &WebhookMultiplexer{
-		RedisClient: rdb,
-		MaxHooks:    10, // Discord's limit is 15.
-	}
+	return &WebhookMultiplexer{RedisClient: rdb}
 }
 
-// ExecuteInline payload mimics Discord Webhook execution dynamically patching user info
-func (wm *WebhookMultiplexer) ExecuteInline(ctx context.Context, webhookID, token string, originalUsername, avatarURL, targetEmoji, content string) error {
-	url := fmt.Sprintf("https://discord.com/api/webhooks/%s/%s", webhookID, token)
+// Dispatch automatically fetches or creates a webhook for the channel, caches it, and maps the user avatar/name.
+func (wm *WebhookMultiplexer) Dispatch(ctx context.Context, channelID, botToken, originalUsername, avatarURL, content string) error {
+	cacheKey := "webhook:" + channelID
+	
+	// 1. Check cache for blazing fast O(1) execution
+	cached, err := wm.RedisClient.Get(ctx, cacheKey).Result()
+	var webhookURL string
 
-	payload := map[string]string{
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	if err == redis.Nil || cached == "" {
+		// Webhook not in cache, fetch or create it from Discord API
+		url := fmt.Sprintf("https://discord.com/api/v10/channels/%s/webhooks", channelID)
+		req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req.Header.Set("Authorization", "Bot "+botToken)
+		
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		var webhooks []map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&webhooks)
+
+		for _, wh := range webhooks {
+			if name, ok := wh["name"].(string); ok && name == "GlobalSync" {
+				webhookURL = fmt.Sprintf("https://discord.com/api/webhooks/%s/%s", wh["id"], wh["token"])
+				break
+			}
+		}
+
+		if webhookURL == "" {
+			payload := map[string]string{"name": "GlobalSync"}
+			body, _ := json.Marshal(payload)
+			req, _ = http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
+			req.Header.Set("Authorization", "Bot "+botToken)
+			req.Header.Set("Content-Type", "application/json")
+			
+			resp2, err := client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer resp2.Body.Close()
+			
+			var newWH map[string]interface{}
+			json.NewDecoder(resp2.Body).Decode(&newWH)
+			if id, ok := newWH["id"].(string); ok {
+				webhookURL = fmt.Sprintf("https://discord.com/api/webhooks/%s/%s", id, newWH["token"])
+			} else {
+				return fmt.Errorf("failed to create webhook: %v", newWH)
+			}
+		}
+
+		wm.RedisClient.Set(ctx, cacheKey, webhookURL, 0)
+	} else {
+		webhookURL = cached
+	}
+
+	// 2. Execute Spoofed Webhook
+	payload := map[string]interface{}{
 		"content":    content,
-		"username":   fmt.Sprintf("%s %s", originalUsername, targetEmoji),
-		"avatar_url": avatarURL,
+		"username":   originalUsername,
+	}
+	// Discord API rejects empty strings for Avatar URL
+	if avatarURL != "" {
+		payload["avatar_url"] = avatarURL
 	}
 
 	body, _ := json.Marshal(payload)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return err
-	}
+	req, _ := http.NewRequestWithContext(ctx, "POST", webhookURL, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	// Extremely fast Dragonfly DB cache check
-	// wm.RedisClient.Get(...)
-
-	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -58,6 +105,6 @@ func (wm *WebhookMultiplexer) ExecuteInline(ctx context.Context, webhookID, toke
 		return fmt.Errorf("discord API error: HTTP %d", resp.StatusCode)
 	}
 
-	log.Printf("Successfully multiplexed webhook as %s", payload["username"])
+	log.Printf("Successfully multiplexed webhook as [%s]", originalUsername)
 	return nil
 }

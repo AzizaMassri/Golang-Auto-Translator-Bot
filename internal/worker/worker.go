@@ -29,7 +29,7 @@ func StartTranslationWorker(ctx context.Context, botToken string, natsMgr *queue
 			return
 		}
 
-		err = multiplexer.ExecuteInline(ctx, job.ChannelID, botToken, job.OriginalUsername, job.AvatarURL, "", translatedText)
+		err = multiplexer.Dispatch(ctx, job.ChannelID, botToken, job.OriginalUsername, job.AvatarURL, translatedText)
 		if err != nil {
 			log.Printf("Multiplexer webhook execution failed: %v", err)
 		}

@@ -54,6 +54,21 @@ The system will now securely await incoming HTTP Discord Event Pings via `localh
 *(If testing locally before deploying to an actual server, launch a reverse proxy like `ngrok http 8080` to safely bounce Discord requests down to your localhost).*
 ---
 
+## 🌐 Discord Developer Portal Setup
+
+Since this bot relies on stateless interactions rather than a WebSocket gateway stream, the setup process in Discord is slightly different:
+
+1. **Create the Application:** Go to the [Discord Developer Portal](https://discord.com/developers/applications) and create a New Application.
+2. **Grab the Public Key:** On the *General Information* page, copy your **PUBLIC KEY**. Paste this into your `.env` file under `DISCORD_PUBLIC_KEY`. This is mandatory for the cryptographic handshake.
+3. **Configure the Interactions Endpoint:** 
+   - Ensure your GlobalSync Go bot is currently running and publicly accessible via your VM's domain/IP (or through an `ngrok` tunnel if testing locally).
+   - Back on the *General Information* page, locate the **Interactions Endpoint URL** field. 
+   - Enter your public URL appended with the interactions route: `https://your-domain.com/interactions`
+   - *CRITICAL:* When you hit Save, Discord will instantly send a `PING` payload to verify the endpoint is alive. Your Go bot will natively respond with a `PONG` allowing the URL to save.
+4. **Permissions:** Under the *OAuth2 -> URL Generator* tab, check `bot` and `applications.commands` to invite the bot to your server.
+
+---
+
 ## 🤖 Automated Deployment Scripts
 
 For maximum stability, the repository includes a `scripts/` directory designed for seamless lifecycle management.

@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package translator;
+
+option go_package = "globalsync/api/proto";
+
+// Service defining translation communication between internal VM nodes
+service TranslationService {
+  rpc TranslateMessage (TranslationRequest) returns (TranslationResponse);
+}
+
+message TranslationRequest {
+  string text = 1;
+  string source_language = 2;
+  string target_language = 3;
+  bool is_enterprise = 4;
+}
+
+message TranslationResponse {
+  string translated_text = 1;
+  string model_used = 2;
+  bool success = 3;
+}

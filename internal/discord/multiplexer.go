@@ -24,7 +24,8 @@ func NewWebhookMultiplexer(rdb *redis.Client) *WebhookMultiplexer {
 
 // Dispatch automatically fetches or creates a webhook for the channel, caches it, and maps the user avatar/name.
 func (wm *WebhookMultiplexer) Dispatch(ctx context.Context, channelID, botToken, originalUsername, avatarURL, content string) error {
-	cacheKey := "webhook:" + channelID
+	// Forcing a v2 cache key to bypass any previously corrupted %!s(<nil>) tokens
+	cacheKey := "webhook_v2:" + channelID
 	
 	// 1. Check cache for blazing fast O(1) execution
 	cached, err := wm.RedisClient.Get(ctx, cacheKey).Result()
@@ -49,8 +50,11 @@ func (wm *WebhookMultiplexer) Dispatch(ctx context.Context, channelID, botToken,
 
 		for _, wh := range webhooks {
 			if name, ok := wh["name"].(string); ok && name == "GlobalSync" {
-				webhookURL = fmt.Sprintf("https://discord.com/api/webhooks/%s/%s", wh["id"], wh["token"])
-				break
+				// Only accept it if Discord actually returned the token to us
+				if token, ok := wh["token"].(string); ok && token != "" {
+					webhookURL = fmt.Sprintf("https://discord.com/api/webhooks/%s/%s", wh["id"], token)
+					break
+				}
 			}
 		}
 

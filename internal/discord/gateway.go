@@ -3,7 +3,9 @@ package discord
 import (
 	"context"
 	"log"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -52,6 +54,18 @@ func (i *Ingestor) Stop() {
 func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Ignore messages sent by ourselves or other bots to prevent infinity loops
 	if m.Author.Bot {
+		return
+	}
+
+	// 0. Ignorer Middleware: Validate raw text so we don't accidentally translate empty GIFs/Links/Emojis
+	contentStr := m.Content
+	linkRegex := regexp.MustCompile(`https?://[^\s]+`)
+	emojiRegex := regexp.MustCompile(`<a?:.+?:\d+>`)
+	
+	stripped := linkRegex.ReplaceAllString(contentStr, "")
+	stripped = emojiRegex.ReplaceAllString(stripped, "")
+	if strings.TrimSpace(stripped) == "" {
+		// The message is exclusively media or custom emojis. Ignore completely.
 		return
 	}
 

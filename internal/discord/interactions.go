@@ -142,6 +142,70 @@ func (ih *InteractionHandler) HandleInteraction(w http.ResponseWriter, r *http.R
 			})
 			return
 		}
+
+		if commandName == "force_language" {
+			options := data["options"].([]interface{})
+			var targetUserID, langSelection string
+			for _, opt := range options {
+				o := opt.(map[string]interface{})
+				if o["name"] == "target" {
+					targetUserID = o["value"].(string)
+				}
+				if o["name"] == "language" {
+					langSelection = o["value"].(string)
+				}
+			}
+
+			ih.RDB.Set(r.Context(), "user:"+targetUserID+":language", langSelection, 0)
+			
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"type": 4, 
+				"data": map[string]interface{}{
+					"content": "🛡️ **Admin Override**: Successfully pinned targeted user translation routing to **" + langSelection + "**.",
+					"flags": 64, 
+				},
+			})
+			return
+		}
+
+		if commandName == "reset_languages" {
+			var targetUserID string
+			if opts, ok := data["options"].([]interface{}); ok && len(opts) > 0 {
+				o := opts[0].(map[string]interface{})
+				if o["name"] == "target" {
+					targetUserID = o["value"].(string)
+				}
+			}
+
+			ctx := r.Context()
+			message := ""
+			
+			if targetUserID != "" {
+				ih.RDB.Del(ctx, "user:"+targetUserID+":language")
+				ih.RDB.Del(ctx, "user:"+targetUserID+":optout")
+				message = "🛡️ **Admin Override**: Wiped translation tracking memory strictly for the targeted user."
+			} else {
+				keys1, _ := ih.RDB.Keys(ctx, "user:*:language").Result()
+				keys2, _ := ih.RDB.Keys(ctx, "user:*:optout").Result()
+				keys1 = append(keys1, keys2...)
+
+				if len(keys1) > 0 {
+					ih.RDB.Del(ctx, keys1...)
+				}
+				message = "💥 **Memory Flushed**: All user translation languages and opt-out flags have been completely wiped!"
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"type": 4, 
+				"data": map[string]interface{}{
+					"content": message,
+					"flags": 64, 
+				},
+			})
+			return
+		}
 	}
 }
 

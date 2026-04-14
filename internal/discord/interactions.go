@@ -4,10 +4,12 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 	"globalsync/internal/queue"
@@ -201,6 +203,43 @@ func (ih *InteractionHandler) HandleInteraction(w http.ResponseWriter, r *http.R
 				"type": 4, 
 				"data": map[string]interface{}{
 					"content": message,
+					"flags": 64, 
+				},
+			})
+			return
+		}
+
+		if commandName == "view_languages" {
+			ctx := r.Context()
+			keys, _ := ih.RDB.Keys(ctx, "user:*:language").Result()
+			
+			if len(keys) == 0 {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"type": 4, 
+					"data": map[string]interface{}{
+						"content": "📭 No user languages are currently assigned in the DB.",
+						"flags": 64, 
+					},
+				})
+				return
+			}
+
+			output := "📊 **GlobalSync Registry:**\n\n"
+			for _, key := range keys {
+				lang, _ := ih.RDB.Get(ctx, key).Result()
+				parts := strings.Split(key, ":")
+				if len(parts) == 3 {
+					userID := parts[1]
+					output += fmt.Sprintf("• <@%s> : **%s**\n", userID, lang)
+				}
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"type": 4, 
+				"data": map[string]interface{}{
+					"content": output,
 					"flags": 64, 
 				},
 			})

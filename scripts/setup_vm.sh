@@ -87,14 +87,14 @@ find_available_port() {
 
 set_env_port() {
     local new_port=$1
-    if grep -q '^PORT=' .env; then
-        sed -i "s/^PORT=.*/PORT=\"$new_port\"/" .env
+    if grep -q '^PORT=' .env 2>/dev/null; then
+        sed -i 's/^PORT=.*/PORT="'$new_port'"/' .env
     else
-        echo "PORT=\"$new_port\"" >> .env
+        echo 'PORT="'$new_port'"' >> .env
     fi
 }
 
-current_port=$(grep -E '^PORT=' .env | cut -d= -f2- | tr -d '"\'' | tr -d '[:space:]')
+current_port=$(grep -E '^PORT=' .env 2>/dev/null | cut -d= -f2- | tr -d '"\'' | tr -d '[:space:]')
 if [ -z "$current_port" ]; then
     current_port=8080
     set_env_port "$current_port"

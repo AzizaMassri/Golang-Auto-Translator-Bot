@@ -55,7 +55,7 @@ func StartTranslationWorker(ctx context.Context, botToken string, natsMgr *queue
 		}
 
 		// 3. Dispatch Unified Webhook Route
-		err = multiplexer.Dispatch(ctx, job.ChannelID, botToken, job.OriginalUsername, job.AvatarURL, finalText)
+		err := multiplexer.Dispatch(ctx, job.ChannelID, botToken, job.OriginalUsername, job.AvatarURL, finalText)
 		if err != nil {
 			log.Printf("Multiplexer webhook execution failed: %v", err)
 		}

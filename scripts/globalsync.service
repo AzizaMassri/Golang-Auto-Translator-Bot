@@ -5,7 +5,7 @@ After=network.target docker.service
 [Service]
 # Execute the native Go binary resulting from `go build`
 Type=simple
-# Ensure you update WorkingDirectory to the actual absolute path on your VM (e.g. /opt/globalsync)
+# Ensure you update WorkingDirectory to the actual absolute path on your VM (e.g. /opt/GlobalSync-Bot)
 WorkingDirectory=/opt/GlobalSync-Bot
 ExecStart=/opt/GlobalSync-Bot/bin/globalsync
 

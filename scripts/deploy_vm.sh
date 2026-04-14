@@ -2,27 +2,31 @@
 # deploy_vm.sh
 # Safely stops the agent, pulls updates from Github, rebuilds, and restarts.
 
+set -e
+
 echo "Initiating globalsync VM deployment..."
 
-# 1. Gracefully shut down current bot (handled by systemd sending SIGTERM)
+# 1. Change to repository root and shut down current bot
+cd "$(dirname "$0")/.."
 echo "Stopping globalsync.service gracefully..."
 sudo systemctl stop globalsync.service
 
 # 2. Pull latest git updates
-echo "Pulling latest Github changes..."
+echo "Pulling latest GitHub changes..."
 git pull origin main
 
 # 3. Ensure dependencies are met and DBs are up
-echo "Verifying docker infrastructure..."
-docker-compose up -d
+echo "Verifying Docker infrastructure..."
+sudo docker compose -f docker-compose.yml up -d
 
 # 4. Rebuild native Go binary for maximum edge performance
 echo "Compiling GlobalSync native binary..."
+mkdir -p bin
 go build -o bin/globalsync ./cmd/globalsync
 
 # 5. Restart the bot cleanly
-echo "Starting globalsync.service..."
-sudo systemctl start globalsync.service
+echo "Restarting globalsync.service..."
+sudo systemctl restart globalsync.service
 
 echo "Checking status..."
 sudo systemctl status globalsync.service --no-pager

@@ -22,14 +22,22 @@ Ensure your host machine has installed:
 - [Go 1.21+](https://go.dev/)
 
 ### 2. Environment Variables
-To securely bind your API integrations, create a standard `.env` file or export these onto your machine:
+To securely bind your API integrations, create a standard `.env` file or export these onto your machine. A template is included in `.env.example`:
 
 ```env
 DISCORD_PUBLIC_KEY="your-discord-app-public-key"
 GEMINI_API_KEY="your-google-ai-studio-key"
-PORT="8080" # Optional, defaults to 8080
+BOT_TOKEN="your-discord-bot-token"
+PORT="8080" # Change this if the VM already runs another bot on port 8080
 ```
-> **Note:** The `DISCORD_PUBLIC_KEY` controls the ED25519 cryptography handshake ensuring malicious bots cannot spoof commands onto your webhook endpoint.
+
+Copy the template before first launch:
+
+```bash
+cp .env.example .env
+```
+
+> **Note:** The `DISCORD_PUBLIC_KEY` controls the ED25519 cryptography handshake ensuring malicious bots cannot spoof commands onto your webhook endpoint. If KingBot shares the same VM, choose a different `PORT` than KingBot's listener port.
 
 ### 3. Running the Infrastructure
 

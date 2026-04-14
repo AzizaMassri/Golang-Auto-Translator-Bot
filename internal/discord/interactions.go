@@ -109,7 +109,6 @@ func (ih *InteractionHandler) HandleInteraction(w http.ResponseWriter, r *http.R
 		}
 	}
 }
-}
 
 // verifyDiscordSignature extracts headers and securely validates the payload
 func verifyDiscordSignature(r *http.Request, body []byte) bool {

@@ -35,7 +35,7 @@ func (g *GeminiService) Translate(ctx context.Context, text, targetLang string, 
 	}
 
 	model := g.Client.GenerativeModel(modelName)
-	prompt := fmt.Sprintf("Translate this strictly to %s. Preserve emojis and formatting. Text: %s", targetLang, text)
+	prompt := fmt.Sprintf("Translate this strictly to %s. Prefix your response exclusively with the country flag emoji for that language, followed by a space, followed by the translation. Keep formatting intact. Text: %s", targetLang, text)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {

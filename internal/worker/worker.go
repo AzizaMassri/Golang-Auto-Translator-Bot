@@ -14,22 +14,28 @@ func StartTranslationWorker(ctx context.Context, botToken string, natsMgr *queue
 	log.Println("Starting NATS consumer worker pool...")
 
 	err := natsMgr.StartConsumer(ctx, func(job queue.TranslationJob) {
-		log.Printf("Worker picked up translation for %s [Enterprise: %v]", job.OriginalUsername, job.IsEnterprise)
+		log.Printf("Worker picked up batched translation for %s [Enterprise: %v]", job.OriginalUsername, job.IsEnterprise)
 
-		// 1. Translate via Gemini
-		translatedText, err := gemini.Translate(ctx, job.Content, job.TargetLanguage, job.IsEnterprise)
-		if err != nil {
-			log.Printf("Gemini Translation failed: %v", err)
-			return
-		}
-
-		// 2. Fetch/Recycle Webhook from DragonflyDB and Execute
 		if botToken == "" {
 			log.Println("Error: BOT_TOKEN missing. Cannot dispatch Webhook.")
 			return
 		}
 
-		err = multiplexer.Dispatch(ctx, job.ChannelID, botToken, job.OriginalUsername, job.AvatarURL, translatedText)
+		// 1. String-Build the unified block
+		finalText := job.Content + "\n\n"
+
+		// 2. Translate via Gemini for each language
+		for _, lang := range job.TargetLanguages {
+			translatedText, err := gemini.Translate(ctx, job.Content, lang, job.IsEnterprise)
+			if err != nil {
+				log.Printf("Gemini Batched Translation failed for [%s]: %v", lang, err)
+				continue
+			}
+			finalText += translatedText + "\n"
+		}
+
+		// 3. Dispatch Unified Webhook Route
+		err = multiplexer.Dispatch(ctx, job.ChannelID, botToken, job.OriginalUsername, job.AvatarURL, finalText)
 		if err != nil {
 			log.Printf("Multiplexer webhook execution failed: %v", err)
 		}

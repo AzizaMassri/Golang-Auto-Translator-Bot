@@ -87,18 +87,35 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 		}
 	}
 
-	// 4. Dispatch 1 Job per Target Language to the infinitely-scalable NATS pipeline
+	// 4. Extract Server Nickname securely
+	displayName := m.Author.Username
+	if m.Member != nil && m.Member.Nick != "" {
+		displayName = m.Member.Nick
+	}
+
+	langArray := make([]string, 0, len(targetLanguages))
 	for lang := range targetLanguages {
+		langArray = append(langArray, lang)
+	}
+
+	// 5. Dispatch 1 Unified Job to NATS
+	if len(langArray) > 0 {
+		// Instantly delete the original message to prevent chat UI duplication
+		err := i.Session.ChannelMessageDelete(m.ChannelID, m.ID)
+		if err != nil {
+			log.Printf("Warning: Failed to delete original message - Missing 'Manage Messages' permission? %v", err)
+		}
+
 		job := queue.TranslationJob{
 			ChannelID:        m.ChannelID,
-			OriginalUsername: m.Author.Username,
+			OriginalUsername: displayName,
 			AvatarURL:        m.Author.AvatarURL("128"),
 			Content:          m.Content,
-			TargetLanguage:   lang,
-			IsEnterprise:     false, // Can be pulled from Premium entitlement DB
+			TargetLanguages:  langArray,
+			IsEnterprise:     false, 
 		}
 		
-		log.Printf("Gateway: Throwing auto-translation job [%s -> %s] into NATS queue", senderLang, lang)
+		log.Printf("Gateway: Throwing batched translation job [%s -> %v] into NATS queue", senderLang, langArray)
 		i.NatsMgr.PublishJob(job)
 	}
 }

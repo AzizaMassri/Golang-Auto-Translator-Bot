@@ -99,10 +99,10 @@ func (ih *InteractionHandler) HandleInteraction(w http.ResponseWriter, r *http.R
 
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"type": 4, // 4 = Instant response (Bypasses the 'thinking' bug completely)
+				"type": 4, 
 				"data": map[string]interface{}{
-					"content": "✅ Perfect! All international messages in your channels will now invisibly Auto-Translate into **" + langSelection + "** for you! (Other users will see it in their chosen language)",
-					"flags": 64, // Ephemeral
+					"content": "✅ Perfect! Your chat messages will now dynamically translate to match the languages of other active gamers in the channel! (And when they speak, you'll see translations in **" + langSelection + "**!)",
+					"flags": 64, 
 				},
 			})
 			return

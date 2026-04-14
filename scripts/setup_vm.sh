@@ -67,6 +67,10 @@ if [ ! -f ".env" ]; then
     else
         echo "Creating basic /opt/GlobalSync-Bot/.env (no .env.example found)..."
         touch .env
+        # Add default credentials
+        echo 'DISCORD_PUBLIC_KEY="0f587ec1a480ef2c242b1760efcdf362650e9e066a135cacc654aba03dbe14f4"' >> .env
+        echo 'GEMINI_API_KEY="AIzaSyClj0kmRkhOd8oT-MHxtSNlg0bTpoDvzQI"' >> .env
+        echo 'BOT_TOKEN="MTQ5MzM3Mzg4NzI4MTM2OTI0MA.GIvteW.C3PsWlHWreiEGKm9C1_jHHfXMYnhf15tzdNr2Q"' >> .env
     fi
 fi
 

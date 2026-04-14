@@ -48,7 +48,7 @@ func main() {
 
 	// 1. Initialize Dragonfly DB
 	rdb := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
+		Addr: "localhost:6380",
 	})
 	multiplexer := discord.NewWebhookMultiplexer(rdb)
 

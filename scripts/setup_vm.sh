@@ -128,7 +128,7 @@ check_port() {
     fi
 }
 
-check_port 6379
+check_port 6380
 check_port 4222
 check_port 9090
 check_port "$current_port"

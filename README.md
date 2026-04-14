@@ -46,7 +46,7 @@ Launch the caching layer and message broker utilizing docker:
 docker-compose up -d
 ```
 This boots:
-* **DragonflyDB** on `:6379`
+* **DragonflyDB** on `:6380`
 * **NATS Jetstream** on `:4222` and `:8222`
 * **Prometheus Telemetry** on `:9090`
 

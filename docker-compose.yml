@@ -4,7 +4,7 @@ services:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
     container_name: globalsync_dragonfly
     ports:
-      - "6379:6379"
+      - "6380:6379"
     ulimits:
       memlock: -1
     command: --proactor_threads=4 --cache_mode=true

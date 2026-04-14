@@ -65,7 +65,8 @@ if [ ! -f ".env" ]; then
         echo "Creating /opt/GlobalSync-Bot/.env from .env.example template..."
         cp .env.example .env
     else
-        echo "WARNING: No .env.example found to seed /opt/GlobalSync-Bot/.env"
+        echo "Creating basic /opt/GlobalSync-Bot/.env (no .env.example found)..."
+        touch .env
     fi
 fi
 

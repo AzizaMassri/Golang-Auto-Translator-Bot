@@ -4,6 +4,9 @@
 
 set -e
 
+# Ensure Go is in PATH
+export PATH=$PATH:/usr/local/go/bin
+
 echo "Initiating globalsync VM deployment..."
 
 # 1. Change to repository root and shut down current bot

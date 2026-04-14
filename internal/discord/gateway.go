@@ -158,7 +158,7 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 			IsEnterprise:     false, 
 		}
 		
-		log.Printf("Gateway: Throwing batched translation job [%s -> %v] into NATS queue", senderLang, langArray)
+		log.Printf("Gateway: Throwing batched translation job [%s -> %v] into NATS queue", senderLangStr, langArray)
 		i.NatsMgr.PublishJob(job)
 	}
 }

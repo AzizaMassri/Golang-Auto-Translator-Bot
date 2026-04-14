@@ -120,11 +120,13 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 
 	// 5. Dispatch 1 Unified Job to NATS
 	if len(langArray) > 0 {
-		// Instantly delete the original message to prevent chat UI duplication
-		err := i.Session.ChannelMessageDelete(m.ChannelID, m.ID)
-		if err != nil {
-			log.Printf("Warning: Failed to delete original message - Missing 'Manage Messages' permission? %v", err)
-		}
+		// Instantly delete the original message natively in the background to prevent chat UI duplication
+		go func() {
+			err := i.Session.ChannelMessageDelete(m.ChannelID, m.ID)
+			if err != nil {
+				log.Printf("Warning: Failed to delete original message - Missing 'Manage Messages' permission? %v", err)
+			}
+		}()
 
 		job := queue.TranslationJob{
 			ChannelID:        m.ChannelID,

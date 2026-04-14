@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/redis/go-redis/v9"
 	"globalsync/internal/discord"
@@ -28,30 +29,51 @@ func StartTranslationWorker(ctx context.Context, botToken string, natsMgr *queue
 		// 1. String-Build the unified block
 		finalText := job.Content + "\n\n"
 
-		// 2. Translate via Gemini for each language intelligently bypassing API calls for generic jargon
-		for _, lang := range job.TargetLanguages {
-			hashBytes := md5.Sum([]byte(job.Content))
-			hashStr := hex.EncodeToString(hashBytes[:])
-			cacheKey := fmt.Sprintf("trans_cache:%s:%s", lang, hashStr)
+		// 2. Translate via Gemini entirely parallelized using Goroutines
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		translations := make([]string, len(job.TargetLanguages))
 
-			cachedText, err := multiplexer.RedisClient.Get(ctx, cacheKey).Result()
-			var translatedText string
+		for i, lang := range job.TargetLanguages {
+			wg.Add(1)
+			go func(idx int, targetLang string) {
+				defer wg.Done()
 
-			if err == redis.Nil || cachedText == "" {
-				// Cache Miss -> Hit Gemini API cost pipeline
-				translatedText, err = gemini.Translate(ctx, job.Content, lang, job.IsEnterprise)
-				if err != nil {
-					log.Printf("Gemini Batched Translation failed for [%s]: %v", lang, err)
-					continue
+				hashBytes := md5.Sum([]byte(job.Content))
+				hashStr := hex.EncodeToString(hashBytes[:])
+				cacheKey := fmt.Sprintf("trans_cache:%s:%s", targetLang, hashStr)
+
+				cachedText, err := multiplexer.RedisClient.Get(ctx, cacheKey).Result()
+				var translatedText string
+
+				if err == redis.Nil || cachedText == "" {
+					// Cache Miss -> Hit Gemini API natively
+					translatedText, err = gemini.Translate(ctx, job.Content, targetLang, job.IsEnterprise)
+					if err != nil {
+						log.Printf("Gemini Batched Translation failed for [%s]: %v", targetLang, err)
+						return
+					}
+					// Save strictly to DB memory
+					multiplexer.RedisClient.Set(ctx, cacheKey, translatedText, 0)
+				} else {
+					log.Printf("Cache Hit! Bypassed API entirely for [%s]", cacheKey)
+					translatedText = cachedText
 				}
-				// Save to Cache Permanently
-				multiplexer.RedisClient.Set(ctx, cacheKey, translatedText, 0)
-			} else {
-				log.Printf("Cache Hit! Bypassed API entirely for [%s]", cacheKey)
-				translatedText = cachedText
-			}
 
-			finalText += translatedText + "\n"
+				mu.Lock()
+				translations[idx] = translatedText
+				mu.Unlock()
+			}(i, lang)
+		}
+		
+		// Unblock completely once the thread-pool resolves
+		wg.Wait()
+
+		// Systematically string-build into the unified final format sequentially
+		for _, t := range translations {
+			if t != "" {
+				finalText += t + "\n"
+			}
 		}
 
 		// 3. Dispatch Unified Webhook Route

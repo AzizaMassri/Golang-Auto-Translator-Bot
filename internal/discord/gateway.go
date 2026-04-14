@@ -96,8 +96,14 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 			continue // Avoid translating to sender
 		}
 		userLang, _ := i.RDB.Get(ctx, "user:"+uid+":language").Result()
-		if userLang != "" && userLang != senderLang {
-			targetLanguages[userLang] = true
+		
+		if userLang != "" {
+			normalizedUser := strings.ToLower(strings.TrimSpace(userLang))
+			normalizedSender := strings.ToLower(strings.TrimSpace(senderLang))
+
+			if normalizedUser != normalizedSender {
+				targetLanguages[userLang] = true
+			}
 		}
 	}
 

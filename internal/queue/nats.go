@@ -75,11 +75,9 @@ func (nm *NatsManager) StartConsumer(ctx context.Context, handler func(job Trans
 			return
 		}
 
-		// Dispatch via goroutine to let NATS ingest instantly
-		go func() {
-			handler(job)
-			msg.Ack()
-		}()
+		// Process synchronously to strictly guarantee the chronological order of chat messages!
+		handler(job)
+		msg.Ack()
 	}, nats.MaxDeliver(3))
 
 	if err != nil {

@@ -88,28 +88,42 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 	maxScoreStr := strconv.FormatInt(time.Now().Add(-3*time.Minute).Unix(), 10)
 	i.RDB.ZRemRangeByScore(ctx, activeKey, "-inf", maxScoreStr) // Prune old
 
-	// 2. Fetch the Sender's native language to prevent translating Spanish -> Spanish
-	senderLang, err := i.RDB.Get(ctx, "user:"+userID+":language").Result()
-	if err != nil || senderLang == "" {
+	// 2. Fetch the Sender's native language array
+	senderLangStr, err := i.RDB.Get(ctx, "user:"+userID+":language").Result()
+	if err != nil || senderLangStr == "" {
 		return // If sender hasn't set a language, do nothing
 	}
+
+	// We assume the sender is physically typing in their Primary language (Index 0)
+	senderLangs := strings.Split(senderLangStr, ",")
+	senderPrimaryNorm := strings.ToLower(strings.TrimSpace(senderLangs[0]))
 
 	// 3. Fetch all active users and map their REQUIRED target languages
 	activeUsers, _ := i.RDB.ZRange(ctx, activeKey, 0, -1).Result()
 	
-	targetLanguages := make(map[string]bool)
+	targetLanguages := make(map[string]string) // Key: Normalized (english), Value: Raw formatting (English)
 	for _, uid := range activeUsers {
 		if uid == userID {
-			continue // Avoid translating to sender
+			continue // Avoid translating for the sender
 		}
-		userLang, _ := i.RDB.Get(ctx, "user:"+uid+":language").Result()
+		userLangStr, _ := i.RDB.Get(ctx, "user:"+uid+":language").Result()
 		
-		if userLang != "" {
-			normalizedUser := strings.ToLower(strings.TrimSpace(userLang))
-			normalizedSender := strings.ToLower(strings.TrimSpace(senderLang))
+		if userLangStr != "" {
+			userLangs := strings.Split(userLangStr, ",")
+			
+			needsTranslation := true
+			// Check if the Receiver physically understands the Sender's Primary Language
+			for _, uLang := range userLangs {
+				if strings.ToLower(strings.TrimSpace(uLang)) == senderPrimaryNorm {
+					needsTranslation = false // They already understand! Skip!
+					break
+				}
+			}
 
-			if normalizedUser != normalizedSender {
-				targetLanguages[userLang] = true
+			if needsTranslation {
+				userPrimaryRaw := strings.TrimSpace(userLangs[0])
+				userPrimaryNorm := strings.ToLower(userPrimaryRaw)
+				targetLanguages[userPrimaryNorm] = userPrimaryRaw // Automatically purges duplicates
 			}
 		}
 	}
@@ -121,8 +135,8 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 	}
 
 	langArray := make([]string, 0, len(targetLanguages))
-	for lang := range targetLanguages {
-		langArray = append(langArray, lang)
+	for _, rawLang := range targetLanguages {
+		langArray = append(langArray, rawLang)
 	}
 
 	// 5. Dispatch 1 Unified Job to NATS

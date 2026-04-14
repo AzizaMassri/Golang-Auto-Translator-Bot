@@ -24,7 +24,7 @@ curl -X PUT \
     "options": [
       {
         "name": "selection",
-        "description": "What language do you speak? (e.g. Spanish, Japanese, English)",
+        "description": "e.g. English OR English, Spanish (comma separated)",
         "type": 3,
         "required": true
       }

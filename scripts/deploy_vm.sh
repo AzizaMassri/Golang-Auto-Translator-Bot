@@ -9,7 +9,7 @@ echo "Initiating globalsync VM deployment..."
 # 1. Change to repository root and shut down current bot
 cd "$(dirname "$0")/.."
 echo "Stopping globalsync.service gracefully..."
-sudo systemctl stop globalsync.service
+sudo systemctl stop globalsync.service || echo "Service not running or not loaded, continuing..."
 
 # 2. Pull latest git updates
 echo "Pulling latest GitHub changes..."

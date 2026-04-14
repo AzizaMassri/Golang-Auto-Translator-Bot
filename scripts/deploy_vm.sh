@@ -26,7 +26,7 @@ go build -o bin/globalsync ./cmd/globalsync
 
 # 5. Restart the bot cleanly
 echo "Restarting globalsync.service..."
-sudo systemctl restart globalsync.service
+sudo systemctl restart globalsync.service || (echo "Service not loaded, linking and starting..." && sudo ln -sf /opt/GlobalSync-Bot/scripts/globalsync.service /etc/systemd/system/globalsync.service && sudo systemctl daemon-reload && sudo systemctl enable globalsync.service && sudo systemctl start globalsync.service)
 
 echo "Checking status..."
 sudo systemctl status globalsync.service --no-pager

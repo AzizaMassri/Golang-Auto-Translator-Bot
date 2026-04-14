@@ -35,7 +35,7 @@ func (g *GeminiService) Translate(ctx context.Context, text, targetLang string, 
 	}
 
 	model := g.Client.GenerativeModel(modelName)
-	prompt := fmt.Sprintf("Translate this strictly and literally to %s. However, if you detect gamer slang or abbreviations (like brb, gg, lol), accurately translate those specific slang terms to their appropriate %s equivalents while keeping the rest of the sentence literal. Prefix your response exclusively with the country flag emoji for that language, followed by a space, followed the translation. Keep formatting intact. Text: %s", targetLang, targetLang, text)
+	prompt := fmt.Sprintf("Translate to %s. Map gamer slang accurately. Prefix with target flag emoji. Text: %s", targetLang, text)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {

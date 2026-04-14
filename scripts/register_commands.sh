@@ -31,6 +31,23 @@ curl -X PUT \
     ]
   },
   {
+    "name": "toggle",
+    "type": 1,
+    "description": "Toggle Auto-Translation ON or OFF for your messages",
+    "options": [
+      {
+        "name": "state",
+        "description": "Select ON or OFF",
+        "type": 3,
+        "required": true,
+        "choices": [
+            { "name": "ON", "value": "ON" },
+            { "name": "OFF", "value": "OFF" }
+        ]
+      }
+    ]
+  },
+  {
     "name": "help",
     "type": 1,
     "description": "Pull up the GlobalSync Guide and commands menu"

@@ -107,6 +107,41 @@ func (ih *InteractionHandler) HandleInteraction(w http.ResponseWriter, r *http.R
 			})
 			return
 		}
+		if commandName == "toggle" {
+			// Extract User ID
+			var userID string
+			if member, ok := payload["member"].(map[string]interface{}); ok {
+				user := member["user"].(map[string]interface{})
+				userID = user["id"].(string)
+			} else {
+				user := payload["user"].(map[string]interface{})
+				userID = user["id"].(string)
+			}
+
+			options := data["options"].([]interface{})
+			state := options[0].(map[string]interface{})["value"].(string)
+
+			message := ""
+			if state == "OFF" {
+				ih.RDB.Set(r.Context(), "user:"+userID+":optout", "true", 0)
+				message = "🛑 **Opt-Out Enabled**: The GlobalSync Gateway will now actively ignore your chat messages. They will no longer be intercepted, deleted, or translated."
+				log.Printf("User %s opted OUT of translation routing.", userID)
+			} else {
+				ih.RDB.Set(r.Context(), "user:"+userID+":optout", "false", 0)
+				message = "✅ **Opt-Out Disabled**: Auto-translation has been fully restored for your messages!"
+				log.Printf("User %s opted BACK IN to translation routing.", userID)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"type": 4, 
+				"data": map[string]interface{}{
+					"content": message,
+					"flags": 64, 
+				},
+			})
+			return
+		}
 	}
 }
 

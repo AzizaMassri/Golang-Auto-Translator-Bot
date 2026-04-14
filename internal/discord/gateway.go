@@ -57,7 +57,16 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 		return
 	}
 
-	// 0. Ignorer Middleware: Validate raw text so we don't accidentally translate empty GIFs/Links/Emojis
+	// 0. Privacy Middleware: Abort if the User has Opted Out of all interceptions.
+	ctx := context.Background()
+	userID := m.Author.ID
+
+	optOutFlag, _ := i.RDB.Get(ctx, "user:"+userID+":optout").Result()
+	if optOutFlag == "true" {
+		return // Completely preserve their privacy natively
+	}
+
+	// 1. Ignorer Middleware: Validate raw text so we don't accidentally translate empty GIFs/Links/Emojis
 	contentStr := m.Content
 	linkRegex := regexp.MustCompile(`https?://[^\s]+`)
 	emojiRegex := regexp.MustCompile(`<a?:.+?:\d+>`)
@@ -69,16 +78,14 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 		return
 	}
 
-	ctx := context.Background()
 	channelID := m.ChannelID
-	userID := m.Author.ID
 
 	// 1. Maintain "Active Status" in DragonflyDB using an expiration ZSET (Score = Time)
 	// Anyone who spikes in the last hour is considered "active" for translation targeting.
 	activeKey := "channel:" + channelID + ":active"
 	i.RDB.ZAdd(ctx, activeKey, redis.Z{Score: float64(time.Now().Unix()), Member: userID})
 	
-	maxScoreStr := strconv.FormatInt(time.Now().Add(-1*time.Hour).Unix(), 10)
+	maxScoreStr := strconv.FormatInt(time.Now().Add(-3*time.Minute).Unix(), 10)
 	i.RDB.ZRemRangeByScore(ctx, activeKey, "-inf", maxScoreStr) // Prune old
 
 	// 2. Fetch the Sender's native language to prevent translating Spanish -> Spanish

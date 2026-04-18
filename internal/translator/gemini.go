@@ -69,7 +69,7 @@ func (g *GeminiService) Translate(ctx context.Context, text, targetLang string, 
 	}
 
 	model := g.Client.GenerativeModel(modelName)
-	prompt := fmt.Sprintf("Translate strictly to %s. Map gamer slang organically. You must reply with ONLY the final translated text prefixed by the target flag emoji. Do NOT provide explanations, notes, or breakdowns under any circumstances. Text: %s", targetLang, text)
+	prompt := fmt.Sprintf("Translate strictly to %s. Map gamer slang organically. Keep all emojis exactly unchanged; never translate, replace, remove, or describe emoji meaning. Preserve Discord custom emoji tokens exactly (for example <:name:id> and <a:name:id>) with the same names/IDs. You must reply with ONLY the final translated text prefixed by the target flag emoji. Do NOT provide explanations, notes, or breakdowns under any circumstances. Text: %s", targetLang, text)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {

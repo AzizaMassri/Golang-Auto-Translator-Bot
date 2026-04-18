@@ -99,7 +99,7 @@ set_env_port() {
     fi
 }
 
-current_port=$(grep -E '^PORT=' .env 2>/dev/null | cut -d= -f2- | tr -d '"\'' | tr -d '[:space:]')
+current_port=$(grep -E '^PORT=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]')
 if [ -z "$current_port" ]; then
     current_port=8080
     set_env_port "$current_port"

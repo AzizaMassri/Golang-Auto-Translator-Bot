@@ -66,6 +66,22 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 		return // Completely preserve their privacy natively
 	}
 
+	// Rate Limiting Check: Free tier allows 5000 characters per day
+	charCount := len(m.Content)
+	dailyKey := "rate_limit:" + userID + ":" + time.Now().Format("2006-01-02")
+	currentUsage, _ := i.RDB.Get(ctx, dailyKey).Result()
+	usage := 0
+	if currentUsage != "" {
+		usage, _ = strconv.Atoi(currentUsage)
+	}
+	if usage + charCount > 5000 {
+		// Exceeded limit, silently ignore (no vote friction)
+		log.Printf("User %s exceeded daily limit (%d/%d chars)", userID, usage, 5000)
+		return
+	}
+	// Increment usage
+	i.RDB.Set(ctx, dailyKey, strconv.Itoa(usage+charCount), 24*time.Hour)
+
 	// 1. Ignorer Middleware: Validate raw text so we don't accidentally translate empty GIFs/Links/Emojis
 	contentStr := m.Content
 	linkRegex := regexp.MustCompile(`https?://[^\s]+`)
@@ -73,7 +89,21 @@ func (i *Ingestor) OnMessageCreate(s *discordgo.Session, m *discordgo.MessageCre
 	
 	stripped := linkRegex.ReplaceAllString(contentStr, "")
 	stripped = emojiRegex.ReplaceAllString(stripped, "")
-	if strings.TrimSpace(stripped) == "" {
+	
+	// Check for voice messages
+	isVoiceMessage := false
+	if len(m.Attachments) > 0 {
+		for _, att := range m.Attachments {
+			if strings.HasPrefix(att.ContentType, "audio/") {
+				isVoiceMessage = true
+				// TODO: Transcribe the audio using GeminiService
+				// For now, skip voice messages
+				return
+			}
+		}
+	}
+	
+	if strings.TrimSpace(stripped) == "" && !isVoiceMessage {
 		// The message is exclusively media or custom emojis. Ignore completely.
 		return
 	}

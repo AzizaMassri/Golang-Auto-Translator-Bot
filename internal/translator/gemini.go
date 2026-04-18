@@ -3,7 +3,9 @@ package translator
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -21,6 +23,38 @@ func NewGeminiService(ctx context.Context, apiKey string) (*GeminiService, error
 		return nil, err
 	}
 	return &GeminiService{Client: client}, nil
+}
+
+// Transcribe transcribes audio from URL to text
+func (g *GeminiService) Transcribe(ctx context.Context, audioURL string) (string, error) {
+	// Download audio
+	resp, err := http.Get(audioURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	audioData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	model := g.Client.GenerativeModel("gemini-2.5-flash")
+	part := genai.Blob{MIMEType: "audio/ogg", Data: audioData} // Assuming OGG, Discord uses OGG for voice
+
+	respGem, err := model.GenerateContent(ctx, part, genai.Text("Transcribe this audio to text. Reply with only the transcription."))
+	if err != nil {
+		return "", err
+	}
+
+	if len(respGem.Candidates) == 0 || len(respGem.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("empty translation response")
+	}
+
+	transcription := fmt.Sprintf("%v", respGem.Candidates[0].Content.Parts[0])
+	log.Printf("Transcription Success")
+
+	return transcription, nil
 }
 
 // Translate routes dynamically to Flash 2.5 or Pro 3.1
